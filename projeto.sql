@@ -118,8 +118,9 @@ INSERT INTO DOACAO (data, status, codcamp, doador_cpf) VALUES
 ('2025-12-10', 'Confirmada', 1, '12345678901'),
 ('2025-06-05', 'Pendente', 2, '98765432100'),
 ('2025-01-15', 'Confirmada', 3, '55566677788'),
-('2025-01-19', 'Pendente', 2, '68543221298'),
-('2025-01-24', 'Pendente', 2, '12345678901');
+('2025-01-19', 'Confirmada', 2, '68543221298'),
+('2025-01-24', 'Pendente', 2, '12345678901'),
+('2025-01-22', 'Confirmada', 3, '68543221298');
 
 -- Inserindo dados na tabela CATEGORIA_ITEM
 INSERT INTO CATEGORIA_ITEM (nome) VALUES
@@ -138,7 +139,8 @@ INSERT INTO ITEM (nome, codcategitem, codest) VALUES
 ('Arroz 5kg', 1, 1),
 ('Casaco de Lã', 2, 2),
 ('Caderno 100 folhas', 3, 1),
-('Feijão 5kg', 1, 1);
+('Feijão 5kg', 1, 1),
+('Estojo', 3, 2);
 
 -- Inserindo dados na tabela DOACAO_ITEM
 INSERT INTO DOACAO_ITEM (coditem, coddoacao, quantidade) VALUES
@@ -146,7 +148,8 @@ INSERT INTO DOACAO_ITEM (coditem, coddoacao, quantidade) VALUES
 (2, 2, 5),
 (3, 3, 15),
 (1, 4, 6),
-(4, 5, 9);
+(4, 5, 9),
+(5, 6, 4);
 
 -- Inserindo dados na tabela RECEPTOR
 INSERT INTO RECEPTOR (nome, rua, bairro, numero) VALUES
@@ -234,7 +237,7 @@ LEFT JOIN RECEPTOR R ON CR.CODREC = R.CODREC;
 
 -- • 2 consultas usando Group By (e possivelmente o having)
 -- 1ª Consulta (mostra a campanha e a quantidade de doadores nela)
-SELECT C.NOME AS CAMPANHA, COUNT(D) AS QUANTIDADE_DOADOR
+SELECT C.NOME AS CAMPANHA, COUNT(DISTINCT D) AS QUANTIDADE_DOADOR
 FROM DOACAO DOA
 JOIN DOADOR D ON DOA.DOADOR_CPF = D.CPF
 JOIN CAMPANHA C ON DOA.CODCAMP = C.CODCAMP
@@ -385,7 +388,106 @@ GROUP BY C.NOME;
 
 CREATE INDEX idx_item_estado ON ITEM (CODEST);
 
---Exemplo de consulta otimizada da questão 2a:
+-- Exemplo de consulta otimizada da questão 2a:
 SELECT I.NOME AS ITEM, E.DESCRICAO AS ESTADO
 FROM ITEM I
 JOIN ESTADO E ON I.CODEST = E.CODEST;
+
+/*
+d. Reescrita de consultas (6,0):
+1ª reescrita: O JOIN com a tabela DOADOR foi removido, pois a contagem dos doadores pode ser feita diretamente na tabela DOACAO,
+usando DOADOR_CPF. Isso torna a consulta mais eficiente, reduzindo o processamento desnecessário e mantendo o mesmo resultado.*/
+
+SELECT C.NOME AS CAMPANHA, COUNT(DISTINCT DOA.DOADOR_CPF) AS QUANTIDADE_DOADORES
+FROM DOACAO DOA
+JOIN CAMPANHA C ON DOA.CODCAMP = C.CODCAMP
+GROUP BY C.NOME;
+
+/*
+2ª reescrita: A consulta original usa EXCEPT, que pode ser custoso, existe uma maneira de não usar,
+fazendo o left join e pegando onde o coddoacao é nulo.
+*/
+SELECT D.CPF, D.NOME
+FROM DOADOR D
+LEFT JOIN DOACAO DOA ON D.CPF = DOA.DOADOR_CPF
+WHERE DOA.CODDOACAO IS NULL;
+
+-- e. Funções e procedures armazenadas (16,0):
+
+-- • 1 função que use SUM, MAX, MIN, AVG ou COUNT
+/*
+A função recebe o nome de um doador, usa esse nome para encontrar seu CPF e contar quantas doações possuem com esse cpf,
+coloca esse resultado em uma variável e retorna ela, assim apresentando a quantidade de doações feitas por esse doador. 
+*/
+CREATE OR REPLACE FUNCTION total_doacoes_confirmadas(nome VARCHAR) 
+RETURNS INT AS $$
+DECLARE
+	CPF_DOADOR VARCHAR;
+    TOTAL_DOACOES INT;
+BEGIN
+	SELECT D.CPF INTO CPF_DOADOR
+	FROM DOADOR D
+	WHERE D.NOME = total_doacoes_confirmadas.NOME;
+	
+    SELECT COUNT(*) INTO TOTAL_DOACOES
+    FROM DOACAO
+    WHERE DOADOR_CPF = CPF_DOADOR AND STATUS = 'Confirmada';
+
+    RETURN TOTAL_DOACOES;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Exemplo de uso:
+SELECT total_doacoes_confirmadas('Felipe Cordeiro');
+
+-- • Outras 2 funções com justificativa semântica, conforme os requisitos da aplicação
+CREATE OR REPLACE FUNCTION INSERIR_ITEM_CATEGORIA_ESTADO(
+    p_nome_item VARCHAR(255), 
+    p_nome_categoria VARCHAR(255), 
+    p_nome_estado VARCHAR(255)
+)
+RETURNS VOID AS $$
+DECLARE
+    v_categoria INT;
+    v_estado INT;
+    estados_disponiveis TEXT;
+BEGIN
+    -- Verifica se a categoria já existe, senão cria
+    SELECT CODCATEGITEM INTO v_categoria
+    FROM CATEGORIA_ITEM
+    WHERE NOME = p_nome_categoria;
+
+    IF v_categoria IS NULL THEN
+        INSERT INTO CATEGORIA_ITEM (NOME)
+        VALUES (p_nome_categoria)
+        RETURNING CODCATEGITEM INTO v_categoria;
+    END IF;
+
+    -- Verifica se o estado existe
+    SELECT CODEST INTO v_estado
+    FROM ESTADO
+    WHERE DESCRICAO = p_nome_estado;
+
+    -- Se o estado não existir, captura os estados disponíveis e lança erro
+    IF v_estado IS NULL THEN
+        SELECT STRING_AGG(DESCRICAO, ', ') INTO estados_disponiveis FROM ESTADO;
+        RAISE EXCEPTION 'Nenhum estado encontrado com o nome: %. Os possíveis são: %', 
+                        p_nome_estado, estados_disponiveis;
+    END IF;
+
+    -- Insere o item usando os IDs da categoria e do estado
+    INSERT INTO ITEM (NOME, CODCATEGITEM, CODEST)
+    VALUES (p_nome_item, v_categoria, v_estado);
+
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- Uso:
+SELECT INSERIR_ITEM_CATEGORIA_ESTADO('Bicicleta', 'Transporte', 'Novo');
+SELECT INSERIR_ITEM_CATEGORIA_ESTADO('Notebook', 'Informática', 'Estragado');
+SELECT INSERIR_ITEM_CATEGORIA_ESTADO('Tablet', 'Eletrônicos', 'Usado');
+
+select * from item;
+select * from categoria_item;
+select * from estado;
