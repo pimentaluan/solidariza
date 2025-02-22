@@ -9,7 +9,7 @@
 CREATE TABLE CAMPANHA (
     codcamp SERIAL PRIMARY KEY,
     nome VARCHAR(255) NOT NULL,
-    meta NUMERIC(10,2) NOT NULL,
+    meta INTEGER NOT NULL,
     data_inicio DATE NOT NULL,
     data_fim DATE NOT NULL,
     status VARCHAR(50) NOT NULL
@@ -99,10 +99,10 @@ CREATE TABLE CAMPANHA_RECEPTOR (
 -- INSERT para testes
 -- Inserindo dados na tabela CAMPANHA
 INSERT INTO CAMPANHA (nome, meta, data_inicio, data_fim, status) VALUES
-('Natal Solidário', 50000.00, '2025-12-01', '2025-12-31', 'Ativa'),
-('Inverno Sem Fome', 30000.00, '2025-06-01', '2025-07-15', 'Ativa'),
-('Volta às Aulas', 20000.00, '2025-01-05', '2025-02-10', 'Finalizada'),
-('Ajuda Humanitária Global', 75000.00, '2025-03-01', '2025-04-30', 'Ativa');
+('Natal Solidário', 500, '2025-12-01', '2025-12-31', 'Ativa'),
+('Inverno Sem Fome', 300, '2025-06-01', '2025-07-15', 'Ativa'),
+('Volta às Aulas', 200, '2025-01-05', '2025-02-10', 'Finalizada'),
+('Ajuda Humanitária Global', 750, '2025-03-01', '2025-04-30', 'Ativa');
 
 
 -- Inserindo dados na tabela DOADOR
@@ -207,15 +207,16 @@ SELECT * FROM RECEPTOR;
 -- • 1 consulta com uma tabela usando operadores básicos de filtro (e.g., IN,  between, is null, etc).  
 SELECT * 
 FROM CAMPANHA
-WHERE META BETWEEN 30000 AND 50000;
+WHERE META BETWEEN 300 AND 500;
 
 -- • 3 consultas com inner JOIN na cláusula FROM (pode ser self join, caso o  domínio indique esse uso).
 
--- 1ª consulta (Ver os doadores e as campanhas que eles fizeram doações)
+-- 1ª consulta (Ver os doadores e as campanhas que eles fizeram doações) ordenando por nome
 SELECT D.NOME AS DOADOR, C.NOME AS CAMPANHA
 FROM DOACAO DOA
 JOIN DOADOR D ON DOA.DOADOR_CPF = D.CPF
-JOIN CAMPANHA C ON DOA.CODCAMP = C.CODCAMP;
+JOIN CAMPANHA C ON DOA.CODCAMP = C.CODCAMP
+ORDER BY D.NOME;
 
 -- 2ª consulta (Ver o item e o estado físico em que ele se encontra)
 SELECT I.NOME AS ITEM, E.DESCRICAO AS ESTADO
@@ -230,14 +231,14 @@ JOIN CATEGORIA_ONG CA ON O.CODCATEGONG = CA.CODCATEGONG;
 
 -- • 1 consulta com left/right/full outer join na cláusula FROM
 -- Exibe todas as campanhas (incluindo aquelas que não estão associadas a um receptor)
-SELECT C.NOME AS CAMPANHA, R.NOME AS RECEPTOR
+SELECT C.NOME AS CAMPANHA, COALESCE(R.NOME, 'NENHUM DEFINIDO') AS RECEPTOR
 FROM CAMPANHA C
 LEFT JOIN CAMPANHA_RECEPTOR CR ON C.CODCAMP = CR.CODCAMP
 LEFT JOIN RECEPTOR R ON CR.CODREC = R.CODREC;
 
 -- • 2 consultas usando Group By (e possivelmente o having)
 -- 1ª Consulta (mostra a campanha e a quantidade de doadores nela)
-SELECT C.NOME AS CAMPANHA, COUNT(DISTINCT D) AS QUANTIDADE_DOADOR
+SELECT C.NOME AS CAMPANHA, COUNT(DISTINCT D) AS QUANTIDADE_DOACAO
 FROM DOACAO DOA
 JOIN DOADOR D ON DOA.DOADOR_CPF = D.CPF
 JOIN CAMPANHA C ON DOA.CODCAMP = C.CODCAMP
@@ -261,7 +262,7 @@ FROM DOADOR D
 JOIN DOACAO DOA ON D.CPF = DOA.DOADOR_CPF;
 
 -- • 2 consultas que usem subqueries.
--- 1ª Consulta (campanhas que arrecadaram mais que a média de todas as campanhas)
+-- 1ª Consulta (campanhas que possuem a meta maior que a média de todas as campanhas)
 SELECT NOME, META
 FROM CAMPANHA
 WHERE META > (
@@ -292,17 +293,17 @@ FROM DOACAO
 WHERE STATUS = 'Pendente'
 WITH CHECK OPTION;
 
+-- Teste de sucesso:
 INSERT INTO V_DOACOES_PENDENTES (DATA, STATUS, CODCAMP, DOADOR_CPF)
 VALUES ('2025-07-25', 'Pendente', 2, '98765432100');
 
 SELECT * FROM V_DOACOES_PENDENTES;
 
-/*
-Essa inserção daria erro, por não possuir status "Pendente", assim violando a verificação da view:
+-- Teste de erro (essa inserção abaixo daria erro por não possuir status "Pendente", assim violando a verificação da view):
 
 INSERT INTO V_DOACOES_PENDENTES (DATA, STATUS, CODCAMP, DOADOR_CPF)
 VALUES ('2025-07-25', 'Ativo', 3, '68543221298');
-*/
+
 
 -- • 2 visões robustas (e.g., com vários joins) com justificativa semântica, de acordo com os requisitos da aplicação.
 
@@ -363,8 +364,7 @@ CREATE INDEX idx_campanha_meta ON CAMPANHA (META);
 
 --Exemplo de consulta otimizada da questão 2a:
 SELECT * FROM CAMPANHA 
-WHERE META BETWEEN 30000 AND 50000;
-
+WHERE META BETWEEN 300 AND 500;
 
 /*
 2º Índice: Este índice composto melhora a performance de consultas que agrupam doadores por campanha.  
@@ -374,7 +374,7 @@ WHERE META BETWEEN 30000 AND 50000;
 CREATE INDEX idx_doacao_campanha_doador ON DOACAO (CODCAMP, DOADOR_CPF);
 
 --Exemplo de consulta otimizada da questão 2a:
-SELECT C.NOME AS CAMPANHA, COUNT(D) AS QUANTIDADE_DOADOR
+SELECT C.NOME AS CAMPANHA, COUNT(DISTINCT DOA.DOADOR_CPF) AS QUANTIDADE_DOACAO
 FROM DOACAO DOA
 JOIN DOADOR D ON DOA.DOADOR_CPF = D.CPF
 JOIN CAMPANHA C ON DOA.CODCAMP = C.CODCAMP
@@ -398,7 +398,7 @@ d. Reescrita de consultas (6,0):
 1ª reescrita: O JOIN com a tabela DOADOR foi removido, pois a contagem dos doadores pode ser feita diretamente na tabela DOACAO,
 usando DOADOR_CPF. Isso torna a consulta mais eficiente, reduzindo o processamento desnecessário e mantendo o mesmo resultado.*/
 
-SELECT C.NOME AS CAMPANHA, COUNT(DISTINCT DOA.DOADOR_CPF) AS QUANTIDADE_DOADORES
+SELECT C.NOME AS CAMPANHA, COUNT(DISTINCT DOA.DOADOR_CPF) AS QUANTIDADE_DOACAO
 FROM DOACAO DOA
 JOIN CAMPANHA C ON DOA.CODCAMP = C.CODCAMP
 GROUP BY C.NOME;
@@ -441,18 +441,16 @@ $$ LANGUAGE plpgsql;
 SELECT total_doacoes_confirmadas('Felipe Cordeiro');
 
 -- • Outras 2 funções com justificativa semântica, conforme os requisitos da aplicação
-CREATE OR REPLACE FUNCTION INSERIR_ITEM_CATEGORIA_ESTADO(
-    p_nome_item VARCHAR(255), 
-    p_nome_categoria VARCHAR(255), 
-    p_nome_estado VARCHAR(255)
-)
+/*
+1ª função: Essa função insere na tabela item, com a pessoa psasando através dela a categoria pelo nome, qque caso não exista, na tabela categoria,
+ele cria e o estado, que caso na exsita ele lança uma exceção.
+*/
+CREATE OR REPLACE FUNCTION INSERIR_ITEM_CATEGORIA_ESTADO(p_nome_item VARCHAR(255), p_nome_categoria VARCHAR(255), p_nome_estado VARCHAR(255)) 
 RETURNS VOID AS $$
 DECLARE
     v_categoria INT;
     v_estado INT;
-    estados_disponiveis TEXT;
 BEGIN
-    -- Verifica se a categoria já existe, senão cria
     SELECT CODCATEGITEM INTO v_categoria
     FROM CATEGORIA_ITEM
     WHERE NOME = p_nome_categoria;
@@ -463,31 +461,207 @@ BEGIN
         RETURNING CODCATEGITEM INTO v_categoria;
     END IF;
 
-    -- Verifica se o estado existe
     SELECT CODEST INTO v_estado
     FROM ESTADO
     WHERE DESCRICAO = p_nome_estado;
 
-    -- Se o estado não existir, captura os estados disponíveis e lança erro
     IF v_estado IS NULL THEN
-        SELECT STRING_AGG(DESCRICAO, ', ') INTO estados_disponiveis FROM ESTADO;
-        RAISE EXCEPTION 'Nenhum estado encontrado com o nome: %. Os possíveis são: %', 
-                        p_nome_estado, estados_disponiveis;
+        RAISE EXCEPTION 'Nenhum estado encontrado com o nome: %. Os possíveis são: Novo, Usado e Danificado', p_nome_estado;
     END IF;
 
-    -- Insere o item usando os IDs da categoria e do estado
     INSERT INTO ITEM (NOME, CODCATEGITEM, CODEST)
     VALUES (p_nome_item, v_categoria, v_estado);
-
 END;
 $$ LANGUAGE plpgsql;
 
-
 -- Uso:
 SELECT INSERIR_ITEM_CATEGORIA_ESTADO('Bicicleta', 'Transporte', 'Novo');
-SELECT INSERIR_ITEM_CATEGORIA_ESTADO('Notebook', 'Informática', 'Estragado');
 SELECT INSERIR_ITEM_CATEGORIA_ESTADO('Tablet', 'Eletrônicos', 'Usado');
 
+-- Exemplo de erro para testar a exception:
+SELECT INSERIR_ITEM_CATEGORIA_ESTADO('Notebook', 'Informática', 'Estragado');
+
+
+--Ver as tabelas com as adições:
 select * from item;
 select * from categoria_item;
 select * from estado;
+
+
+/*
+2ª função: Essa função recebe o nome de uma campanha e retorna um booleano (TRUE ou FALSE) indicando se a campanha está ativa.
+*/
+
+CREATE OR REPLACE FUNCTION verificar_campanha_ativa(p_nome_campanha VARCHAR)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_status VARCHAR;
+BEGIN
+    SELECT STATUS INTO v_status
+    FROM CAMPANHA
+    WHERE NOME = p_nome_campanha;
+
+    IF v_status IS NULL THEN
+        RAISE EXCEPTION 'A campanha "%" não foi encontrada.', p_nome_campanha;
+    END IF;
+
+    RETURN v_status = 'Ativa';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Teste:
+SELECT verificar_campanha_ativa('Natal Solidário');
+
+-- • 1 procedure com justificativa semântica, conforme os requisitos da aplicação
+-- Essa procedure recebe o código da doação e o novo status que a pessoa deseja colocar na doação. Verifica se a doação existe, se não lança a exceção, se existir atualiza.
+CREATE OR REPLACE PROCEDURE atualizar_status_doacao(p_coddoacao INT, p_novo_status VARCHAR)
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM DOACAO WHERE CODDOACAO = p_coddoacao) THEN
+        RAISE EXCEPTION 'A doação com código % não foi encontrada.', p_coddoacao;
+    END IF;
+
+    UPDATE DOACAO
+    SET STATUS = p_novo_status
+    WHERE CODDOACAO = p_coddoacao;
+
+    RAISE NOTICE 'Status da doação % atualizado para %.', p_coddoacao, p_novo_status;
+END;
+$$;
+
+-- Teste:
+CALL atualizar_status_doacao(3, 'Pendente');
+
+SELECT * FROM DOACAO
+WHERE CODDOACAO = 3;
+
+
+-- f. Triggers (12,0)
+
+/*
+1º trigger: Esse trigger impede novas doações para campanhas que já atingiram ou ultrapassaram sua meta de itens arrecadados.
+*/
+
+CREATE OR REPLACE FUNCTION verificar_meta_doacoes()
+RETURNS TRIGGER AS $$
+DECLARE
+	doacao_campanha INTEGER;
+    total_doado NUMERIC;
+    meta_campanha NUMERIC;
+	
+BEGIN
+	SELECT CODCAMP INTO doacao_campanha FROM DOACAO WHERE CODDOACAO = NEW.CODDOACAO;
+    SELECT META INTO meta_campanha FROM CAMPANHA WHERE CODCAMP = DOACAO_CAMPANHA;
+
+	SELECT COALESCE(SUM(DI.QUANTIDADE), 0) INTO total_doado
+    FROM DOACAO_ITEM DI
+    JOIN DOACAO D ON DI.CODDOACAO = D.CODDOACAO
+    WHERE D.CODCAMP = doacao_campanha;
+	
+    IF total_doado >= meta_campanha THEN
+        RAISE EXCEPTION 'A campanha atingiu a meta de doações e não pode receber mais.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_verificar_meta_doacoes
+BEFORE INSERT ON DOACAO_ITEM
+FOR EACH ROW
+EXECUTE FUNCTION verificar_meta_doacoes();
+
+
+-- Teste:
+-- Aqui, mesmo que passando da meta ele vai inserir, pois ao tentar, ainda não havia itens acima da meta
+INSERT INTO DOACAO_ITEM (coditem, coddoacao, quantidade)
+VALUES (1, 5, 500000);
+
+-- Mas ao tentar inserir novamente, o trigger irá impedir:
+INSERT INTO DOACAO_ITEM (coditem, coddoacao, quantidade)
+VALUES (1, 5, 500000);
+
+
+/*
+2º trigger: Este trigger registra todas as alterações feitas na tabela CAMPANHA, seja INSERT, UPDATE ou DELETE.
+Os dados armazenados incluem quem fez a alteração, quando e qual foi a operação.
+*/
+
+CREATE TABLE LOG_CAMPANHA (
+    id SERIAL PRIMARY KEY,
+    codcamp INT,
+    operacao CHAR(1),
+    usuario VARCHAR(255) DEFAULT CURRENT_USER,
+    data_alteracao TIMESTAMP DEFAULT NOW()
+);
+
+
+CREATE OR REPLACE FUNCTION log_alteracoes_campanha()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_codcamp INT;
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        v_codcamp := NEW.CODCAMP;
+    ELSE
+        v_codcamp := OLD.CODCAMP;
+    END IF;
+
+    INSERT INTO LOG_CAMPANHA (codcamp, operacao, usuario)
+    VALUES (v_codcamp, SUBSTR(TG_OP,1,1), CURRENT_USER);
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_log_campanha
+AFTER INSERT OR UPDATE OR DELETE ON CAMPANHA
+FOR EACH ROW
+EXECUTE FUNCTION log_alteracoes_campanha();
+
+
+-- Teste:
+INSERT INTO CAMPANHA (nome, meta, data_inicio, data_fim, status) 
+VALUES ('Campanha Teste', 5000, '2025-07-01', '2025-07-31', 'Ativa');
+
+UPDATE CAMPANHA 
+SET META = 8000 
+WHERE CODCAMP = 1;
+
+
+SELECT * FROM LOG_CAMPANHA;
+
+/*
+3º trigger: Este trigger cria um backup de cada doação antes de ser excluída da tabela DOACAO.
+*/
+
+CREATE TABLE BACKUP_DOACAO (
+    id SERIAL PRIMARY KEY,
+    coddoacao INT,
+    data DATE,
+    status VARCHAR(50),
+    codcamp INT,
+    doador_cpf VARCHAR(14),
+    data_insercao TIMESTAMP DEFAULT NOW()
+);
+
+CREATE OR REPLACE FUNCTION backup_antes_insert_doacao()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO BACKUP_DOACAO (coddoacao, data, status, codcamp, doador_cpf)
+    VALUES (NEW.coddoacao, NEW.data, NEW.status, NEW.codcamp, NEW.doador_cpf);
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_backup_doacao
+BEFORE INSERT ON DOACAO
+FOR EACH ROW
+EXECUTE FUNCTION backup_antes_insert_doacao();
+
+-- Teste
+INSERT INTO DOACAO (data, status, codcamp, doador_cpf) 
+VALUES ('2025-12-20', 'Confirmada', 3, '55566677788');
+
+SELECT * FROM BACKUP_DOACAO;
