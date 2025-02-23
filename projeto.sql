@@ -126,7 +126,8 @@ INSERT INTO DOACAO (data, status, codcamp, doador_cpf) VALUES
 INSERT INTO CATEGORIA_ITEM (nome) VALUES
 ('Alimentos'),
 ('Roupas'),
-('Material Escolar');
+('Material Escolar'),
+('Transporte');
 
 -- Inserindo dados na tabela ESTADO
 INSERT INTO ESTADO (descricao) VALUES
@@ -205,6 +206,7 @@ SELECT * FROM RECEPTOR;
 -- ii. 10 consultas variadas de acordo com requisitos da aplicação, com justificativa  semântica e conforme critérios seguintes: 
 
 -- • 1 consulta com uma tabela usando operadores básicos de filtro (e.g., IN,  between, is null, etc).  
+-- Ver todas as campanhas que possuem a meta entre 300 e 500
 SELECT * 
 FROM CAMPANHA
 WHERE META BETWEEN 300 AND 500;
@@ -393,8 +395,9 @@ SELECT I.NOME AS ITEM, E.DESCRICAO AS ESTADO
 FROM ITEM I
 JOIN ESTADO E ON I.CODEST = E.CODEST;
 
+
+-- d. Reescrita de consultas (6,0):
 /*
-d. Reescrita de consultas (6,0):
 1ª reescrita: O JOIN com a tabela DOADOR foi removido, pois a contagem dos doadores pode ser feita diretamente na tabela DOACAO,
 usando DOADOR_CPF. Isso torna a consulta mais eficiente, reduzindo o processamento desnecessário e mantendo o mesmo resultado.*/
 
@@ -579,8 +582,9 @@ VALUES (1, 5, 500000);
 
 -- Mas ao tentar inserir novamente, o trigger irá impedir:
 INSERT INTO DOACAO_ITEM (coditem, coddoacao, quantidade)
-VALUES (1, 5, 500000);
+VALUES (1, 5, 200000);
 
+SELECT * FROM DOACAO_ITEM;
 
 /*
 2º trigger: Este trigger registra todas as alterações feitas na tabela CAMPANHA, seja INSERT, UPDATE ou DELETE.
